@@ -31,6 +31,7 @@
 
 #include <asm/system_misc.h>
 
+#include <soc/qcom/scm.h>
 #include <soc/qcom/socinfo.h>
 #include <soc/qcom/smem.h>
 #include <soc/qcom/boot_stats.h>
@@ -969,6 +970,24 @@ msm_get_images(struct device *dev,
 	return pos;
 }
 
+#define GET_SECURE_STATE_CMD	4
+
+static ssize_t
+msm_get_secure_state(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int ret;
+	struct scm_desc desc = {
+		.arginfo = SCM_ARGS(0),
+	};
+
+	ret = scm_call2(SCM_SIP_FNID(SCM_SVC_INFO, GET_SECURE_STATE_CMD), &desc);
+	if (ret)
+		return snprintf(buf, PAGE_SIZE, "Unavailable\n");
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", !(desc.ret[0] & (1 << 1)));
+}
+
 static struct device_attribute msm_soc_attr_raw_version =
 	__ATTR(raw_version, S_IRUGO, msm_get_raw_version,  NULL);
 
@@ -1039,6 +1058,9 @@ static struct device_attribute select_image =
 static struct device_attribute images =
 	__ATTR(images, S_IRUGO, msm_get_images, NULL);
 
+static struct device_attribute secure =
+	__ATTR(secure, S_IRUGO, msm_get_secure_state, NULL);
+
 static void * __init setup_dummy_socinfo(void)
 {
 	if (early_machine_is_apq8084()) {
@@ -1108,6 +1130,7 @@ static void __init populate_soc_sysfs_files(struct device *msm_soc_device)
 	device_create_file(msm_soc_device, &image_crm_version);
 	device_create_file(msm_soc_device, &select_image);
 	device_create_file(msm_soc_device, &images);
+	device_create_file(msm_soc_device, &secure);
 
 	switch (socinfo_format) {
 	case SOCINFO_VERSION(0, 11):
